@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "lobo.on-the-minute",
+  "name": "OnTheMinute",
+  "version": "0.1.0",
+  "author": "Daniel Lobo",
+  "license": "MIT",
+  "description": "Customizable EMOM (Every Minute On the Minute) workout timer with per-minute and 5-second-warning cues, plus session history.",
+  "kinds": ["bar-widget", "overlay"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "overlay": "Overlay.qml"
+  },
+  "barWidget": {
+    "displayName": "OnTheMinute",
+    "description": "EMOM workout timer",
+    "category": "Fitness",
+    "allowMultiple": false
+  }
+}
