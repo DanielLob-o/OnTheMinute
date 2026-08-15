@@ -23,7 +23,7 @@ Every minute, and again on the last 5 seconds, you get a sound plus a
 desktop notification, so you don't have to keep glancing at the screen.
 
 Past workouts are saved automatically. Open the history list to see what you
-did and when, or delete an entry you don't want to keep.
+did and when, repeat a session with one click, or delete it if you don't want to keep it.
 
 ## Install
 
