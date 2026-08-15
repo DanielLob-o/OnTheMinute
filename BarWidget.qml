@@ -32,9 +32,11 @@ BarWidget {
   FileView {
     id: historyFile
     path: root.historyPath
-    // TODO: watchChanges + onLoaded wiring, atomic write via .adapter or
-    // setText, mirroring shell/plugins/clipboard/Clipboard.qml's FileView.
+    // A fresh install has no history file yet — that's expected, not an
+    // error, so it resolves to an empty history rather than surfacing a
+    // load failure. Mirrors clipboard's FileView.onLoadFailed.
     onLoaded: root.history = History.parseHistory(text())
+    onLoadFailed: root.history = History.parseHistory("[]")
   }
 
   function saveHistory() {
