@@ -279,10 +279,10 @@ Panel {
                 Text {
                   id: summaryText
                   anchors.fill: parent
-                  text: historyRow.modelData.finishedAt + " — " + historyRow.modelData.minutes + " min, " + (historyRow.modelData.exercises || []).length + " exercises"
+                  text: Model.formatSessionDate(historyRow.modelData.finishedAt) + " · " + historyRow.modelData.minutes + " min, " + (historyRow.modelData.exercises || []).length + " exercises"
                   color: root.contentForeground
                   font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.bodySmall
+                  font.pixelSize: Style.font.caption
                   elide: Text.ElideRight
                 }
 

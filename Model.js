@@ -60,6 +60,18 @@ function formatClock(minutesLeft, secondsLeft) {
   return m + ":" + (s < 10 ? "0" : "") + s
 }
 
+// Compact local-time display for a session's ISO finishedAt, e.g.
+// "2026-08-15 20:32" — no seconds, no milliseconds, no T/Z.
+function formatSessionDate(isoString) {
+  var date = new Date(isoString)
+  if (isNaN(date.getTime())) return String(isoString || "")
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n }
+
+  return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate()) +
+    " " + pad2(date.getHours()) + ":" + pad2(date.getMinutes())
+}
+
 // The whole list is the program for every minute — an EMOM repeats the same
 // round each time, it doesn't rotate through one exercise per minute.
 function exercisesLabel(exercises) {
@@ -79,6 +91,7 @@ if (typeof module !== "undefined") {
     isMinuteLandmark: isMinuteLandmark,
     isMinuteMark: isMinuteMark,
     formatClock: formatClock,
+    formatSessionDate: formatSessionDate,
     exercisesLabel: exercisesLabel
   }
 }
