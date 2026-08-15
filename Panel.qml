@@ -65,6 +65,18 @@ Panel {
     persistSettings({ soundEnabled: !(root.hostWidget ? root.hostWidget.soundEnabled : true) })
   }
 
+  // Loads a past session's exercises and minutes back into the current
+  // config, same fields the dropdown edits, so repeating a workout is just
+  // clicking history instead of retyping it.
+  function repeatSession(session) {
+    if (!session) return
+    persistSettings({
+      exercisesText: Model.exercisesToText(session.exercises || []),
+      minutes: Model.validMinutes(session.minutes)
+    })
+    syncFields()
+  }
+
   KeyboardPanel {
     id: panel
     anchorItem: root.anchorItem
@@ -273,7 +285,7 @@ Panel {
               spacing: Style.space(8)
 
               Item {
-                width: parent.width - deleteButton.width - parent.spacing
+                width: parent.width - repeatButton.width - deleteButton.width - parent.spacing * 2
                 height: summaryText.implicitHeight
 
                 Text {
@@ -291,6 +303,15 @@ Panel {
                   cursorShape: Qt.PointingHandCursor
                   onClicked: root.expandedHistoryIndex = (root.expandedHistoryIndex === historyRow.index ? -1 : historyRow.index)
                 }
+              }
+
+              PanelActionButton {
+                id: repeatButton
+                iconText: "↻"
+                tooltipText: "Repeat this session"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                onClicked: root.repeatSession(historyRow.modelData)
               }
 
               PanelActionButton {

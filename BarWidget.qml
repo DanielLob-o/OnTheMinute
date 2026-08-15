@@ -92,7 +92,8 @@ BarWidget {
     liveStateFile.setText(JSON.stringify({
       running: root.running,
       displayText: root.displayText,
-      exercisesLabel: root.exercisesLabel
+      exercisesLabel: root.exercisesLabel,
+      exercises: root.exercises
     }))
   }
 

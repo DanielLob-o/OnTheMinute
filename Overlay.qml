@@ -33,6 +33,7 @@ Item {
   property bool running: false
   property string displayText: "EMOM"
   property string exercisesLabel: ""
+  property var exercises: []
 
   FileView {
     id: liveStateFile
@@ -49,6 +50,7 @@ Item {
     root.running = state.running === true
     root.displayText = state.displayText || "EMOM"
     root.exercisesLabel = state.exercisesLabel || ""
+    root.exercises = Array.isArray(state.exercises) ? state.exercises : []
   }
 
   function open(payloadJson) {
@@ -100,15 +102,25 @@ Item {
           font.bold: true
         }
 
-        Text {
+        Column {
           width: parent.width
-          visible: root.running && root.exercisesLabel !== ""
-          horizontalAlignment: Text.AlignHCenter
-          wrapMode: Text.WordWrap
-          text: root.exercisesLabel
-          color: Color.foreground
-          font.family: Style.font.family
-          font.pixelSize: Style.font.title
+          visible: root.running && root.exercises.length > 0
+          spacing: Style.space(8)
+
+          Repeater {
+            model: root.exercises
+
+            Text {
+              required property string modelData
+              width: parent.width
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              text: modelData
+              color: Color.foreground
+              font.family: Style.font.family
+              font.pixelSize: Style.font.title
+            }
+          }
         }
 
         Text {
