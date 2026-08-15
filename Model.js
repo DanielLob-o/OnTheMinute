@@ -49,11 +49,10 @@ function formatClock(minutesLeft, secondsLeft) {
   return m + ":" + (s < 10 ? "0" : "") + s
 }
 
-// Round-robins the exercise list across elapsed minutes so a 4-exercise,
-// 10-minute EMOM cycles back to the first move on minute 5, 9, ...
-function exerciseForMinute(exercises, minuteIndex) {
-  if (!exercises || exercises.length === 0) return ""
-  return exercises[minuteIndex % exercises.length]
+// The whole list is the program for every minute — an EMOM repeats the same
+// round each time, it doesn't rotate through one exercise per minute.
+function exercisesLabel(exercises) {
+  return (exercises || []).join(", ")
 }
 
 if (typeof module !== "undefined") {
@@ -68,6 +67,6 @@ if (typeof module !== "undefined") {
     isWarningPhase: isWarningPhase,
     isMinuteMark: isMinuteMark,
     formatClock: formatClock,
-    exerciseForMinute: exerciseForMinute
+    exercisesLabel: exercisesLabel
   }
 }

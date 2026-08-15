@@ -11,6 +11,14 @@ import "History.js" as History
 // Timer state lives here rather than in the panel/overlay because those are
 // only loaded while summoned — the countdown has to keep running, and the
 // bar label has to keep updating, whether either surface is open or not.
+//
+// The overlay is a separately-summoned top-level plugin surface with no
+// direct reference to this instance, so live state reaches it through a
+// small watched state file (liveStatePath below) rather than a shared
+// service singleton — Quickshell's synchronous service-plugin loader
+// (shell.serviceFor/ensureService) reliably fails third-party services with
+// a spurious "File name case mismatch" here, reproduced even with a plain,
+// non-symlinked plugin directory, so that path is avoided.
 BarWidget {
   id: root
   moduleName: "lobo.on-the-minute"
@@ -22,6 +30,10 @@ BarWidget {
   readonly property var exercises: Model.parseExercises(exercisesText)
   readonly property int configuredMinutes: Model.validMinutes(setting("minutes", Model.DEFAULT_MINUTES))
   readonly property bool soundEnabled: setting("soundEnabled", true) !== false
+
+  // An EMOM repeats the whole list every minute — it isn't one exercise
+  // rotating in per minute.
+  readonly property string exercisesLabel: Model.exercisesLabel(root.exercises)
 
   // ---- Session history. Own state file, not a shell.json setting — this
   //      grows unbounded over time, same reasoning as clipboard history.
@@ -43,6 +55,11 @@ BarWidget {
     historyFile.setText(JSON.stringify(root.history, null, 2) + "\n")
   }
 
+  function deleteHistoryEntry(index) {
+    root.history = History.removeAt(root.history, index)
+    saveHistory()
+  }
+
   function recordSession() {
     root.history = History.addSession(root.history, {
       finishedAt: new Date().toISOString(),
@@ -59,10 +76,25 @@ BarWidget {
   property bool paused: false
   property int minuteIndex: 0       // whole minutes elapsed since start
   property int secondsLeft: 59      // counts down within the current minute
-  readonly property string currentExercise: Model.exerciseForMinute(root.exercises, root.minuteIndex)
   readonly property string displayText: root.running
     ? Model.formatClock(root.configuredMinutes - root.minuteIndex - 1, root.secondsLeft)
     : "EMOM"
+
+  // ---- Live state file for Overlay.qml. Written on every state change
+  //      rather than polled; Overlay.qml watches it with FileView's
+  //      watchChanges, the same "write, watch, react" shape the image
+  //      picker uses for its selection round-trip.
+  readonly property string liveStatePath: Quickshell.env("HOME") + "/.local/state/omarchy/on-the-minute-live.json"
+
+  FileView { id: liveStateFile; path: root.liveStatePath }
+
+  function publishLiveState() {
+    liveStateFile.setText(JSON.stringify({
+      running: root.running,
+      displayText: root.displayText,
+      exercisesLabel: root.exercisesLabel
+    }))
+  }
 
   function start() {
     if (!Model.canStart(root.exercises, root.configuredMinutes)) return
@@ -70,13 +102,15 @@ BarWidget {
     root.paused = false
     root.minuteIndex = 0
     root.secondsLeft = 59
-    notify("EMOM started", root.currentExercise)
+    notify("EMOM started", root.exercisesLabel)
     playCue("go")
+    publishLiveState()
   }
 
   function pause() {
     if (!root.running) return
     root.paused = !root.paused
+    publishLiveState()
   }
 
   function reset() {
@@ -84,17 +118,13 @@ BarWidget {
     root.paused = false
     root.minuteIndex = 0
     root.secondsLeft = 59
+    publishLiveState()
   }
 
   function tick() {
     if (!root.running || root.paused) return
 
-    if (Model.isWarningPhase(root.secondsLeft)) {
-      // TODO: fire once per second for the last 5 seconds, not just at the
-      // boundary — a short distinct "tick" cue per the design doc in
-      // sounds/README.md.
-      playCue("warning")
-    }
+    if (Model.isWarningPhase(root.secondsLeft)) playCue("warning")
 
     if (root.secondsLeft <= 0) {
       root.minuteIndex += 1
@@ -103,15 +133,18 @@ BarWidget {
         recordSession()
         notify("EMOM complete", root.configuredMinutes + " minute" + (root.configuredMinutes === 1 ? "" : "s") + " done")
         playCue("done")
+        publishLiveState()
         return
       }
       root.secondsLeft = 59
-      notify("Minute " + (root.minuteIndex + 1), root.currentExercise)
+      notify("Minute " + (root.minuteIndex + 1), root.exercisesLabel)
       playCue("minute")
+      publishLiveState()
       return
     }
 
     root.secondsLeft -= 1
+    publishLiveState()
   }
 
   Timer {
@@ -123,8 +156,8 @@ BarWidget {
 
   // ---- Notifications + sound. Desktop toast for visibility when the bar
   //      isn't in view, bundled audio cues (see sounds/README.md) played
-  //      independently via paplay so each event gets a distinct, reliable
-  //      sound regardless of the system notification theme.
+  //      independently via paplay/pw-play so each event gets a distinct,
+  //      reliable sound regardless of the system notification theme.
   readonly property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   function notify(headline, body) {
@@ -133,9 +166,11 @@ BarWidget {
 
   function playCue(name) {
     if (!root.soundEnabled) return
-    // TODO: resolve the plugin's own directory rather than assuming CWD;
-    // fall back from paplay to pw-play if paplay is unavailable.
-    Quickshell.execDetached(["paplay", "sounds/" + name + ".wav"])
+    // Resolved against this file's own location — a bare "sounds/x.wav" is
+    // relative to the shell process's cwd, not the plugin directory, and
+    // silently plays nothing.
+    var path = String(Qt.resolvedUrl("sounds/" + name + ".wav")).replace(/^file:\/\//, "")
+    Quickshell.execDetached(["bash", "-c", "paplay " + JSON.stringify(path) + " 2>/dev/null || pw-play " + JSON.stringify(path) + " 2>/dev/null"])
   }
 
   // ---- Bar-widget shape contract, mirrored from panels/clock/BarWidget.qml.

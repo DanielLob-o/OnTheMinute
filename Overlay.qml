@@ -1,5 +1,6 @@
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Io
 import QtQuick
 import qs.Commons
 import qs.Ui
@@ -7,8 +8,20 @@ import qs.Ui
 // Fullscreen "big screen" workout view — for running the timer somewhere
 // visible across the room instead of squinting at the bar. Summoned via
 // BarWidget.qml's openBigView() (shell.summon) or directly by IPC/keybind.
-// Structure mirrors shell/plugins/reminders/ReminderFlow.qml's overlay
-// (PanelWindow + WlrLayershell), swapping the input flow for a read-out.
+//
+// This is a separately-summoned top-level plugin surface with no direct
+// reference to the BarWidget instance that owns the countdown, so it reads
+// live state from a small file BarWidget.qml writes on every tick, watched
+// here for changes — the same "write, watch, react" shape the built-in
+// image picker uses for its selection round-trip. (A shared service
+// singleton would be the more direct route, but Quickshell's synchronous
+// third-party service loader reliably fails on this shell with a spurious
+// "File name case mismatch", reproduced even outside a symlinked plugin
+// directory.)
+//
+// Structure otherwise mirrors shell/plugins/reminders/ReminderFlow.qml's
+// overlay (PanelWindow + WlrLayershell), swapping the input flow for a
+// read-out.
 Item {
   id: root
 
@@ -16,16 +29,31 @@ Item {
   property var manifest: null
   property bool opened: false
 
-  // The bar widget instance owns timer state; the overlay just displays it.
-  // TODO: resolve the live BarWidget instance instead of tracking a copy —
-  // likely via a shared Service singleton once one exists, so the overlay
-  // doesn't drift from the bar's own countdown between summons.
-  property string displayText: "EMOM"
-  property string currentExercise: ""
+  readonly property string liveStatePath: Quickshell.env("HOME") + "/.local/state/omarchy/on-the-minute-live.json"
   property bool running: false
+  property string displayText: "EMOM"
+  property string exercisesLabel: ""
+
+  FileView {
+    id: liveStateFile
+    path: root.liveStatePath
+    watchChanges: true
+    onFileChanged: reload()
+    onLoaded: root.applyLiveState(text())
+    onLoadFailed: root.applyLiveState("")
+  }
+
+  function applyLiveState(raw) {
+    var state = {}
+    try { state = JSON.parse(raw || "{}") } catch (e) { state = {} }
+    root.running = state.running === true
+    root.displayText = state.displayText || "EMOM"
+    root.exercisesLabel = state.exercisesLabel || ""
+  }
 
   function open(payloadJson) {
     root.opened = true
+    liveStateFile.reload()
   }
 
   function close() {
@@ -60,6 +88,7 @@ Item {
 
       Column {
         anchors.centerIn: parent
+        width: Math.min(parent.width - Style.space(80), Style.space(900))
         spacing: Style.space(24)
 
         Text {
@@ -72,9 +101,11 @@ Item {
         }
 
         Text {
-          anchors.horizontalCenter: parent.horizontalCenter
-          visible: root.running
-          text: root.currentExercise
+          width: parent.width
+          visible: root.running && root.exercisesLabel !== ""
+          horizontalAlignment: Text.AlignHCenter
+          wrapMode: Text.WordWrap
+          text: root.exercisesLabel
           color: Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.title

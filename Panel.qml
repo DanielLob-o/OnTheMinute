@@ -18,11 +18,24 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
+  property int expandedHistoryIndex: -1
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
-  function open() { root.controller.show() }
+  // Explicit refresh point for the two editable fields instead of a live
+  // `text:` binding — see the comment on exercisesField. Runs whenever the
+  // panel opens (so edits made elsewhere, e.g. reset, aren't stale) and
+  // once hostWidget first arrives.
+  function syncFields() {
+    if (!root.hostWidget) return
+    exercisesField.text = root.hostWidget.exercisesText
+    minutesField.text = String(root.hostWidget.configuredMinutes)
+  }
+
+  onHostWidgetChanged: syncFields()
+
+  function open() { root.controller.show(); syncFields() }
   function close() { root.controller.hide() }
   function toggle() { root.opened ? root.close() : root.open() }
 
@@ -61,7 +74,7 @@ Panel {
     centerOnBar: true
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(360))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight)
+    contentHeight: panel.fittedContentHeight(content.implicitHeight + Style.spacing.panelPadding * 2)
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -70,9 +83,11 @@ Panel {
 
       Column {
         id: content
-        width: parent.width
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Style.spacing.panelPadding
         spacing: Style.space(10)
-        padding: Style.spacing.panelPadding
 
         // ---- Live status: idle prompt, or the running countdown + current
         //      exercise while a workout is active.
@@ -88,13 +103,15 @@ Panel {
 
         Text {
           width: parent.width
+          // The full list is the round for every minute — an EMOM repeats
+          // the same exercises each time rather than rotating through them.
           visible: root.hostWidget ? root.hostWidget.running : false
-          text: root.hostWidget ? root.hostWidget.currentExercise : ""
+          text: root.hostWidget ? root.hostWidget.exercisesLabel : ""
           color: root.contentForeground
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.body
           horizontalAlignment: Text.AlignHCenter
-          elide: Text.ElideRight
+          wrapMode: Text.WordWrap
         }
 
         // ---- Exercise list + minute count. Freeform textarea — one
@@ -108,12 +125,46 @@ Panel {
           font.letterSpacing: 1
         }
 
+        // No themed multi-line control ships in qs.Ui (only a single-line
+        // TextField), so this mirrors that component's own styling —
+        // BorderSurface background, focus/hover borderSpec, same palette —
+        // by hand rather than falling through to the unstyled stock
+        // QtQuick.Controls.TextArea look.
         TextArea {
           id: exercisesField
           width: parent.width
           height: Style.space(90)
-          text: root.hostWidget ? root.hostWidget.exercisesText : ""
+          // Not a live `text:` binding — TextArea/TextField break their own
+          // binding the moment `text` is set (needed so users can type),
+          // so this only ever ran once at creation. If hostWidget's real
+          // settings weren't hydrated yet at that instant, the field got
+          // permanently stuck on the placeholder-empty default and any
+          // later blur would silently overwrite the saved value with it.
+          // Synced explicitly instead — see syncFields().
           placeholderText: "2 squats\n2 push ups\n2 kettlebell swings\n5 presses"
+          wrapMode: TextArea.NoWrap
+
+          color: root.contentForeground
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.body
+          selectionColor: Style.selectionFillFor(root.contentForeground, Color.accent)
+          selectedTextColor: root.contentForeground
+          placeholderTextColor: Qt.darker(root.contentForeground, 1.6)
+
+          readonly property bool _focused: activeFocus
+          readonly property var _borderSpec: Border.controlSpec(_focused ? "focus" : (hovered ? "hover-cursor" : "normal"), root.contentForeground, Color.accent)
+
+          leftPadding: Style.spacing.controlPaddingX + Border.left(_borderSpec)
+          rightPadding: Style.spacing.controlPaddingX + Border.right(_borderSpec)
+          topPadding: Style.spacing.inputPaddingY + Border.top(_borderSpec)
+          bottomPadding: Style.spacing.inputPaddingY + Border.bottom(_borderSpec)
+
+          background: BorderSurface {
+            color: Style.controlFill(exercisesField._focused, exercisesField.hovered, root.contentForeground, Color.accent)
+            borderSpec: exercisesField._borderSpec
+            radius: Style.cornerRadius
+          }
+
           onEditingFinished: root.saveExercises(text)
         }
 
@@ -133,7 +184,6 @@ Panel {
           TextField {
             id: minutesField
             width: Style.space(60)
-            text: root.hostWidget ? String(root.hostWidget.configuredMinutes) : String(Model.DEFAULT_MINUTES)
             inputMethodHints: Qt.ImhDigitsOnly
             onEditingFinished: root.saveMinutes(text)
           }
@@ -180,8 +230,10 @@ Panel {
           }
         }
 
-        // ---- Recent sessions. TODO: scrollable list once history grows
-        //      past a handful of entries; for now, most-recent few.
+        // ---- Session history: capped-height scrollable list rather than
+        //      truncating to a handful of rows, so nothing is unreachable
+        //      once it piles up. Click a row to expand the exercises done
+        //      in that session; the trash icon discards it.
         Text {
           text: "HISTORY"
           color: Qt.darker(root.contentForeground, 1.5)
@@ -190,17 +242,79 @@ Panel {
           font.letterSpacing: 1
         }
 
-        Repeater {
-          model: root.hostWidget ? root.hostWidget.history.slice(0, 5) : []
+        Text {
+          visible: !root.hostWidget || root.hostWidget.history.length === 0
+          text: "No sessions yet"
+          color: Qt.darker(root.contentForeground, 1.6)
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
 
-          Text {
+        ListView {
+          id: historyList
+          visible: root.hostWidget && root.hostWidget.history.length > 0
+          width: content.width
+          height: Math.min(Style.space(180), contentHeight)
+          clip: true
+          spacing: Style.space(6)
+          boundsBehavior: Flickable.StopAtBounds
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          model: root.hostWidget ? root.hostWidget.history : []
+
+          delegate: Column {
+            id: historyRow
             required property var modelData
-            width: content.width
-            text: modelData.finishedAt + " — " + modelData.minutes + " min, " + (modelData.exercises || []).length + " exercises"
-            color: root.contentForeground
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.bodySmall
-            elide: Text.ElideRight
+            required property int index
+            width: historyList.width
+            spacing: Style.space(4)
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+
+              Item {
+                width: parent.width - deleteButton.width - parent.spacing
+                height: summaryText.implicitHeight
+
+                Text {
+                  id: summaryText
+                  anchors.fill: parent
+                  text: historyRow.modelData.finishedAt + " — " + historyRow.modelData.minutes + " min, " + (historyRow.modelData.exercises || []).length + " exercises"
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                }
+
+                MouseArea {
+                  anchors.fill: parent
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.expandedHistoryIndex = (root.expandedHistoryIndex === historyRow.index ? -1 : historyRow.index)
+                }
+              }
+
+              PanelActionButton {
+                id: deleteButton
+                iconText: "󰆴"
+                tooltipText: "Delete"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                onClicked: {
+                  if (root.expandedHistoryIndex === historyRow.index) root.expandedHistoryIndex = -1
+                  if (root.hostWidget) root.hostWidget.deleteHistoryEntry(historyRow.index)
+                }
+              }
+            }
+
+            Text {
+              width: parent.width
+              visible: root.expandedHistoryIndex === historyRow.index
+              text: (historyRow.modelData.exercises || []).join("\n")
+              color: Qt.darker(root.contentForeground, 1.2)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+            }
           }
         }
       }
