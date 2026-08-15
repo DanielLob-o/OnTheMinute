@@ -1,11 +1,9 @@
 # OnTheMinute
 
-A customizable EMOM (Every Minute On the Minute) workout timer, built as an
-[Omarchy](https://github.com/basecamp/omarchy) shell plugin.
+A customizable EMOM (Every Minute On the Minute) workout timer for Omarchy.
 
-Write the exercises you want to cycle through, set how many minutes to go,
-and start the clock. OnTheMinute cues you every minute and again in the
-last 5 seconds of each minute, and keeps a history of finished sessions.
+Write your exercises, set the minutes, hit start. Get cued every minute and
+on the last 5 seconds, with a history of past sessions.
 
 ![OnTheMinute panel](preview.png)
 ![OnTheMinute big view](fullscreen_preview.png)
@@ -13,16 +11,19 @@ last 5 seconds of each minute, and keeps a history of finished sessions.
 
 ## Features
 
-- **Customizable workout** — any list of exercises, one per line, and any
-  number of minutes.
-- **Two ways to watch it**: a compact countdown in the bar with a dropdown
-  to configure and control it, or a fullscreen "big screen" view for when
-  you want the timer visible from across the room.
-- **Audio + visual cues** — a distinct sound on every minute mark and on
-  each of the last 5 seconds, plus a desktop notification alongside every
-  cue so the workout stays trackable even muted or off-screen.
-- **Session history** — every completed workout (exercises, minute count,
-  finish time) is saved locally.
+Type in whatever exercises you're doing and how many minutes you want to go.
+There's no fixed list, so it works for kettlebells, bodyweight circuits, or
+anything else you throw at it.
+
+You get two ways to watch the clock: a small countdown in the bar with a
+dropdown for setup, or a fullscreen view if you want it visible from across
+the room while you work out.
+
+Every minute, and again on the last 5 seconds, you get a sound plus a
+desktop notification, so you don't have to keep glancing at the screen.
+
+Past workouts are saved automatically. Open the history list to see what you
+did and when, or delete an entry you don't want to keep.
 
 ## Install
 
@@ -40,11 +41,9 @@ omarchy plugin enable lobo.on-the-minute
 
 ## Usage
 
-- Click the bar widget to open the configuration dropdown: enter exercises
-  (one per line) and a minute count, then hit start.
-- Right-click the bar widget, or use the dropdown's expand button, to open
-  the fullscreen big view. `Esc` closes it.
-- Toggle sound on/off from the dropdown.
+- Click the bar widget to configure exercises and minutes, then start.
+- Right-click the bar widget, or use the expand button, for the big view. Esc closes it.
+- Toggle sound from the dropdown.
 
 ## Uninstall
 
@@ -59,10 +58,10 @@ rm -rf ~/.config/omarchy/plugins/lobo.on-the-minute
 omarchy-shell shell rescanPlugins
 ```
 
-Session history lives outside the plugin folder at
-`~/.local/state/omarchy/on-the-minute-history.json` and isn't touched by
-either method — remove it separately if you want it gone too.
+Session history lives separately at
+`~/.local/state/omarchy/on-the-minute-history.json` and isn't removed by
+either method.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT, see [`LICENSE`](LICENSE).
