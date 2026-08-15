@@ -124,9 +124,13 @@ BarWidget {
   function tick() {
     if (!root.running || root.paused) return
 
-    if (Model.isWarningPhase(root.secondsLeft)) playCue("warning")
-
-    if (root.secondsLeft <= 0) {
+    // Mutually exclusive by construction (see Model.isWarningPhase): the
+    // last-5-seconds ticks and the minute landmark never land on the same
+    // second, so the landmark cue always reads as its own distinct event
+    // rather than overlapping the warning tick right before it.
+    if (Model.isWarningPhase(root.secondsLeft)) {
+      playCue("warning")
+    } else if (Model.isMinuteLandmark(root.secondsLeft)) {
       root.minuteIndex += 1
       if (root.minuteIndex >= root.configuredMinutes) {
         root.running = false

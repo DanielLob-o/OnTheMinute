@@ -34,9 +34,20 @@ function canStart(exercises, minutes) {
   return (exercises || []).length > 0 && validMinutes(minutes) > 0
 }
 
-// secondsLeft counts down from 59 to 0 within the current minute.
+// secondsLeft counts down from 59 to 0 within the current minute. The
+// warning window is the 5 seconds counting into the boundary — 5,4,3,2,1 —
+// deliberately excluding 0: that tick is the minute landmark itself (see
+// isMinuteLandmark), not another warning tick, so the two cues never both
+// fire on the same second.
 function isWarningPhase(secondsLeft) {
-  return secondsLeft >= 0 && secondsLeft < WARNING_WINDOW_SECONDS
+  return secondsLeft >= 1 && secondsLeft <= WARNING_WINDOW_SECONDS
+}
+
+// The tick where a minute rolls over — the landmark moment a running EMOM
+// is really counting toward, so it gets its own larger, distinct cue
+// instead of blending into the last-5-seconds warning ticks.
+function isMinuteLandmark(secondsLeft) {
+  return secondsLeft <= 0
 }
 
 function isMinuteMark(secondsLeft) {
@@ -65,6 +76,7 @@ if (typeof module !== "undefined") {
     validMinutes: validMinutes,
     canStart: canStart,
     isWarningPhase: isWarningPhase,
+    isMinuteLandmark: isMinuteLandmark,
     isMinuteMark: isMinuteMark,
     formatClock: formatClock,
     exercisesLabel: exercisesLabel

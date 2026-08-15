@@ -9,12 +9,12 @@ These are short, synthesized WAV files (generated with a small Python
 script using the stdlib `wave` module — no external assets, no licensing
 concerns) played via `paplay` from `BarWidget.qml`'s `playCue()`:
 
-| File          | Used for                                      |
-|---------------|------------------------------------------------|
-| `minute.wav`  | Every minute mark                              |
-| `warning.wav` | Each of the last 5 seconds of a minute         |
-| `go.wav`      | Workout start                                  |
-| `done.wav`    | Workout complete                               |
+| File          | Used for                                                        |
+|---------------|-------------------------------------------------------------------|
+| `minute.wav`  | The minute landmark (0s) — a bigger, longer two-tone cue on purpose, so it reads as the event the warning ticks are counting down to, not one more tick |
+| `warning.wav` | Each of the 5 seconds counting into a minute boundary (5,4,3,2,1) |
+| `go.wav`      | Workout start                                                    |
+| `done.wav`    | Workout complete                                                 |
 
 A visual notification fires alongside every cue (see `notify()` in
 `BarWidget.qml`), so the workout stays trackable with sound muted or the
