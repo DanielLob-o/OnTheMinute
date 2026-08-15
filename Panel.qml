@@ -23,6 +23,21 @@ Panel {
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
+  // Local wrappers so the theme (foreground/font) is bound once instead of
+  // re-declared at every call site — every button and every caption label
+  // in this panel uses one of these two.
+  component ThemedButton: PanelActionButton {
+    foreground: root.contentForeground
+    fontFamily: root.contentFontFamily
+  }
+
+  component SectionLabel: Text {
+    color: Qt.darker(root.contentForeground, 1.5)
+    font.family: root.contentFontFamily
+    font.pixelSize: Style.font.caption
+    font.letterSpacing: 1
+  }
+
   // Explicit refresh point for the two editable fields instead of a live
   // `text:` binding — see the comment on exercisesField. Runs whenever the
   // panel opens (so edits made elsewhere, e.g. reset, aren't stale) and
@@ -101,8 +116,8 @@ Panel {
         anchors.margins: Style.spacing.panelPadding
         spacing: Style.space(10)
 
-        // ---- Live status: idle prompt, or the running countdown + current
-        //      exercise while a workout is active.
+        // ---- Live status: idle prompt, or the running countdown + the
+        //      exercise list (see Model.exercisesLabel) while active.
         Text {
           width: parent.width
           text: root.hostWidget ? root.hostWidget.displayText : "EMOM"
@@ -115,8 +130,6 @@ Panel {
 
         Text {
           width: parent.width
-          // The full list is the round for every minute — an EMOM repeats
-          // the same exercises each time rather than rotating through them.
           visible: root.hostWidget ? root.hostWidget.running : false
           text: root.hostWidget ? root.hostWidget.exercisesLabel : ""
           color: root.contentForeground
@@ -129,13 +142,7 @@ Panel {
         // ---- Exercise list + minute count. Freeform textarea — one
         //      exercise per line — rather than a schema-driven settings
         //      form, since the list length is arbitrary.
-        Text {
-          text: "EXERCISES (one per line)"
-          color: Qt.darker(root.contentForeground, 1.5)
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
-          font.letterSpacing: 1
-        }
+        SectionLabel { text: "EXERCISES (one per line)" }
 
         // No themed multi-line control ships in qs.Ui (only a single-line
         // TextField), so this mirrors that component's own styling —
@@ -184,13 +191,9 @@ Panel {
           width: parent.width
           spacing: Style.space(10)
 
-          Text {
+          SectionLabel {
             anchors.verticalCenter: parent.verticalCenter
             text: "MINUTES"
-            color: Qt.darker(root.contentForeground, 1.5)
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.caption
-            font.letterSpacing: 1
           }
 
           TextField {
@@ -206,38 +209,30 @@ Panel {
           width: parent.width
           spacing: Style.space(8)
 
-          PanelActionButton {
+          ThemedButton {
             iconText: root.hostWidget && root.hostWidget.running ? "󰏤" : "󰐊"
             tooltipText: root.hostWidget && root.hostWidget.running ? "Pause" : "Start"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
             onClicked: {
               if (!root.hostWidget) return
               root.hostWidget.running ? root.hostWidget.pause() : root.hostWidget.start()
             }
           }
 
-          PanelActionButton {
+          ThemedButton {
             iconText: "󰑙"
             tooltipText: "Reset"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
             onClicked: if (root.hostWidget) root.hostWidget.reset()
           }
 
-          PanelActionButton {
+          ThemedButton {
             iconText: root.hostWidget && root.hostWidget.soundEnabled ? "󰕾" : "󰝟"
             tooltipText: "Toggle sound"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
             onClicked: root.toggleSound()
           }
 
-          PanelActionButton {
+          ThemedButton {
             iconText: "󰊓"
             tooltipText: "Big view"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
             onClicked: if (root.hostWidget) root.hostWidget.openBigView()
           }
         }
@@ -245,14 +240,8 @@ Panel {
         // ---- Session history: capped-height scrollable list rather than
         //      truncating to a handful of rows, so nothing is unreachable
         //      once it piles up. Click a row to expand the exercises done
-        //      in that session; the trash icon discards it.
-        Text {
-          text: "HISTORY"
-          color: Qt.darker(root.contentForeground, 1.5)
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
-          font.letterSpacing: 1
-        }
+        //      in that session; ↻ repeats it, the trash icon discards it.
+        SectionLabel { text: "HISTORY" }
 
         Text {
           visible: !root.hostWidget || root.hostWidget.history.length === 0
@@ -291,7 +280,7 @@ Panel {
                 Text {
                   id: summaryText
                   anchors.fill: parent
-                  text: Model.formatSessionDate(historyRow.modelData.finishedAt) + " · " + historyRow.modelData.minutes + " min, " + (historyRow.modelData.exercises || []).length + " exercises"
+                  text: Model.formatHistorySummary(historyRow.modelData)
                   color: root.contentForeground
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.caption
@@ -305,21 +294,17 @@ Panel {
                 }
               }
 
-              PanelActionButton {
+              ThemedButton {
                 id: repeatButton
                 iconText: "↻"
                 tooltipText: "Repeat this session"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
                 onClicked: root.repeatSession(historyRow.modelData)
               }
 
-              PanelActionButton {
+              ThemedButton {
                 id: deleteButton
                 iconText: "󰆴"
                 tooltipText: "Delete"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
                 onClicked: {
                   if (root.expandedHistoryIndex === historyRow.index) root.expandedHistoryIndex = -1
                   if (root.hostWidget) root.hostWidget.deleteHistoryEntry(historyRow.index)

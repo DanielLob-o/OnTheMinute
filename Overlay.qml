@@ -4,6 +4,7 @@ import Quickshell.Io
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 // Fullscreen "big screen" workout view — for running the timer somewhere
 // visible across the room instead of squinting at the bar. Summoned via
@@ -13,11 +14,8 @@ import qs.Ui
 // reference to the BarWidget instance that owns the countdown, so it reads
 // live state from a small file BarWidget.qml writes on every tick, watched
 // here for changes — the same "write, watch, react" shape the built-in
-// image picker uses for its selection round-trip. (A shared service
-// singleton would be the more direct route, but Quickshell's synchronous
-// third-party service loader reliably fails on this shell with a spurious
-// "File name case mismatch", reproduced even outside a symlinked plugin
-// directory.)
+// image picker uses for its selection round-trip. See BarWidget.qml's own
+// header comment for why this isn't a shared service singleton instead.
 //
 // Structure otherwise mirrors shell/plugins/reminders/ReminderFlow.qml's
 // overlay (PanelWindow + WlrLayershell), swapping the input flow for a
@@ -25,7 +23,6 @@ import qs.Ui
 Item {
   id: root
 
-  property var shell: null
   property var manifest: null
   property bool opened: false
 
@@ -45,12 +42,18 @@ Item {
   }
 
   function applyLiveState(raw) {
-    var state = {}
-    try { state = JSON.parse(raw || "{}") } catch (e) { state = {} }
-    root.running = state.running === true
-    root.displayText = state.displayText || "EMOM"
-    root.exercisesLabel = state.exercisesLabel || ""
-    root.exercises = Array.isArray(state.exercises) ? state.exercises : []
+    var state = Model.parseLiveState(raw)
+    root.running = state.running
+    root.displayText = state.displayText
+    root.exercisesLabel = state.exercisesLabel
+    // A fresh JSON.parse builds a new array every tick even when the list
+    // itself hasn't changed; reassigning unconditionally would reset the
+    // Repeater's model (destroying and recreating every row) once a second
+    // for as long as the overlay is open. Comparing first keeps the same
+    // array reference — and the Repeater's rows — across ticks where the
+    // exercise list is actually unchanged, which is nearly all of them.
+    if (state.exercises.join("\n") !== root.exercises.join("\n"))
+      root.exercises = state.exercises
   }
 
   function open(payloadJson) {

@@ -29,10 +29,8 @@ BarWidget {
   readonly property string exercisesText: setting("exercisesText", "")
   readonly property var exercises: Model.parseExercises(exercisesText)
   readonly property int configuredMinutes: Model.validMinutes(setting("minutes", Model.DEFAULT_MINUTES))
-  readonly property bool soundEnabled: setting("soundEnabled", true) !== false
+  readonly property bool soundEnabled: setting("soundEnabled", true)
 
-  // An EMOM repeats the whole list every minute — it isn't one exercise
-  // rotating in per minute.
   readonly property string exercisesLabel: Model.exercisesLabel(root.exercises)
 
   // ---- Session history. Own state file, not a shell.json setting — this
@@ -64,8 +62,7 @@ BarWidget {
     root.history = History.addSession(root.history, {
       finishedAt: new Date().toISOString(),
       minutes: root.configuredMinutes,
-      exercises: root.exercises,
-      roundsCompleted: root.minuteIndex
+      exercises: root.exercises
     }, root.historyLimit)
     saveHistory()
   }
@@ -74,8 +71,14 @@ BarWidget {
   //      try to resume mid-workout.
   property bool running: false
   property bool paused: false
-  property int minuteIndex: 0       // whole minutes elapsed since start
-  property int secondsLeft: 59      // counts down within the current minute
+  property int minuteIndex: 0                        // whole minutes elapsed since start
+  property int secondsLeft: Model.INITIAL_SECONDS_LEFT // counts down within the current minute
+
+  function resetCountdown() {
+    root.minuteIndex = 0
+    root.secondsLeft = Model.INITIAL_SECONDS_LEFT
+  }
+
   readonly property string displayText: root.running
     ? Model.formatClock(root.configuredMinutes - root.minuteIndex - 1, root.secondsLeft)
     : "EMOM"
@@ -101,54 +104,52 @@ BarWidget {
     if (!Model.canStart(root.exercises, root.configuredMinutes)) return
     root.running = true
     root.paused = false
-    root.minuteIndex = 0
-    root.secondsLeft = 59
+    resetCountdown()
     notify("EMOM started", root.exercisesLabel)
     playCue("go")
     publishLiveState()
   }
 
+  // Pausing only flips a local flag the Timer checks (see below) — nothing
+  // in the published live state depends on it, so no publish is needed.
   function pause() {
     if (!root.running) return
     root.paused = !root.paused
-    publishLiveState()
   }
 
   function reset() {
     root.running = false
     root.paused = false
-    root.minuteIndex = 0
-    root.secondsLeft = 59
+    resetCountdown()
     publishLiveState()
   }
 
+  // Mutually exclusive by construction (see Model.isWarningPhase): the
+  // last-5-seconds ticks and the minute landmark never land on the same
+  // second, so exactly one branch below runs per tick, and each one
+  // publishes exactly once.
   function tick() {
     if (!root.running || root.paused) return
 
-    // Mutually exclusive by construction (see Model.isWarningPhase): the
-    // last-5-seconds ticks and the minute landmark never land on the same
-    // second, so the landmark cue always reads as its own distinct event
-    // rather than overlapping the warning tick right before it.
     if (Model.isWarningPhase(root.secondsLeft)) {
       playCue("warning")
+      root.secondsLeft -= 1
     } else if (Model.isMinuteLandmark(root.secondsLeft)) {
       root.minuteIndex += 1
       if (root.minuteIndex >= root.configuredMinutes) {
         root.running = false
         recordSession()
-        notify("EMOM complete", root.configuredMinutes + " minute" + (root.configuredMinutes === 1 ? "" : "s") + " done")
+        notify("EMOM complete", Model.completionMessage(root.configuredMinutes))
         playCue("done")
-        publishLiveState()
-        return
+      } else {
+        root.secondsLeft = Model.INITIAL_SECONDS_LEFT
+        notify("Minute " + (root.minuteIndex + 1), root.exercisesLabel)
+        playCue("minute")
       }
-      root.secondsLeft = 59
-      notify("Minute " + (root.minuteIndex + 1), root.exercisesLabel)
-      playCue("minute")
-      publishLiveState()
-      return
+    } else {
+      root.secondsLeft -= 1
     }
 
-    root.secondsLeft -= 1
     publishLiveState()
   }
 
@@ -211,6 +212,10 @@ BarWidget {
     source: Qt.resolvedUrl("Panel.qml")
     visible: false
     onLoaded: {
+      // Called twice: immediately so the panel has bar/settings for its
+      // first paint, and once more deferred in case Panel.qml's own
+      // KeyboardPanel/BorderSurface children bind before this Loader
+      // finishes settling — injectPanel() is idempotent either way.
       root.injectPanel()
       Qt.callLater(root.injectPanel)
     }

@@ -5,13 +5,14 @@
 var DEFAULT_MINUTES = 10
 var MAX_MINUTES = 180
 var WARNING_WINDOW_SECONDS = 5
+var INITIAL_SECONDS_LEFT = 59
 
 // One line per exercise, blank lines dropped, surrounding whitespace trimmed.
 // "2 squats\n2 push ups\n2 kettlebell swings\n5 presses" -> 4 entries.
 function parseExercises(text) {
   return String(text || "")
     .split("\n")
-    .map(function(line) { return line.replace(/^\s+|\s+$/g, "") })
+    .map(function(line) { return line.trim() })
     .filter(function(line) { return line.length > 0 })
 }
 
@@ -22,7 +23,7 @@ function exercisesToText(exercises) {
 // Whole minutes only, 1..MAX_MINUTES. Anything else falls back to
 // DEFAULT_MINUTES so a bad/empty field never produces a zero-length workout.
 function validMinutes(value) {
-  var text = String(value === undefined || value === null ? "" : value).replace(/^\s+|\s+$/g, "")
+  var text = String(value === undefined || value === null ? "" : value).trim()
   if (!/^[0-9]+$/.test(text)) return DEFAULT_MINUTES
   var minutes = parseInt(text, 10)
   if (!isFinite(minutes) || minutes <= 0) return DEFAULT_MINUTES
@@ -50,10 +51,6 @@ function isMinuteLandmark(secondsLeft) {
   return secondsLeft <= 0
 }
 
-function isMinuteMark(secondsLeft) {
-  return secondsLeft === 59
-}
-
 function formatClock(minutesLeft, secondsLeft) {
   var m = Math.max(0, minutesLeft)
   var s = Math.max(0, secondsLeft)
@@ -72,10 +69,35 @@ function formatSessionDate(isoString) {
     " " + pad2(date.getHours()) + ":" + pad2(date.getMinutes())
 }
 
-// The whole list is the program for every minute — an EMOM repeats the same
-// round each time, it doesn't rotate through one exercise per minute.
+// The whole list is the program for every minute: an EMOM repeats the same
+// round each time, it doesn't rotate through one exercise per minute. This
+// is the one place that fact is encoded; callers just display the result.
 function exercisesLabel(exercises) {
   return (exercises || []).join(", ")
+}
+
+function completionMessage(minutes) {
+  return minutes + " minute" + (minutes === 1 ? "" : "s") + " done"
+}
+
+function formatHistorySummary(session) {
+  var count = (session && session.exercises || []).length
+  return formatSessionDate(session && session.finishedAt) + " · " +
+    (session && session.minutes) + " min, " + count + " exercise" + (count === 1 ? "" : "s")
+}
+
+// Defensive parse of the live-state JSON BarWidget.qml writes on every tick
+// and Overlay.qml reads back, mirroring History.parseHistory's shape so
+// both watched-file readers in this plugin fail the same way.
+function parseLiveState(raw) {
+  var state = {}
+  try { state = JSON.parse(raw || "{}") } catch (e) { state = {} }
+  return {
+    running: state.running === true,
+    displayText: state.displayText || "EMOM",
+    exercisesLabel: state.exercisesLabel || "",
+    exercises: Array.isArray(state.exercises) ? state.exercises : []
+  }
 }
 
 if (typeof module !== "undefined") {
@@ -83,15 +105,18 @@ if (typeof module !== "undefined") {
     DEFAULT_MINUTES: DEFAULT_MINUTES,
     MAX_MINUTES: MAX_MINUTES,
     WARNING_WINDOW_SECONDS: WARNING_WINDOW_SECONDS,
+    INITIAL_SECONDS_LEFT: INITIAL_SECONDS_LEFT,
     parseExercises: parseExercises,
     exercisesToText: exercisesToText,
     validMinutes: validMinutes,
     canStart: canStart,
     isWarningPhase: isWarningPhase,
     isMinuteLandmark: isMinuteLandmark,
-    isMinuteMark: isMinuteMark,
     formatClock: formatClock,
     formatSessionDate: formatSessionDate,
-    exercisesLabel: exercisesLabel
+    exercisesLabel: exercisesLabel,
+    completionMessage: completionMessage,
+    formatHistorySummary: formatHistorySummary,
+    parseLiveState: parseLiveState
   }
 }
