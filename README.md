@@ -7,6 +7,10 @@ Write the exercises you want to cycle through, set how many minutes to go,
 and start the clock. OnTheMinute cues you every minute and again in the
 last 5 seconds of each minute, and keeps a history of finished sessions.
 
+![OnTheMinute panel](preview.png)
+![OnTheMinute big view](fullscreen_preview.png)
+![OnTheMinute notification](minute_preview.png)
+
 ## Features
 
 - **Customizable workout** — any list of exercises, one per line, and any
@@ -41,6 +45,23 @@ omarchy plugin enable lobo.on-the-minute
 - Right-click the bar widget, or use the dropdown's expand button, to open
   the fullscreen big view. `Esc` closes it.
 - Toggle sound on/off from the dropdown.
+
+## Uninstall
+
+```bash
+omarchy plugin remove lobo.on-the-minute
+```
+
+Or by hand:
+
+```bash
+rm -rf ~/.config/omarchy/plugins/lobo.on-the-minute
+omarchy-shell shell rescanPlugins
+```
+
+Session history lives outside the plugin folder at
+`~/.local/state/omarchy/on-the-minute-history.json` and isn't touched by
+either method — remove it separately if you want it gone too.
 
 ## License
 
